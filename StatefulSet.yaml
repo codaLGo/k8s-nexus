@@ -1,0 +1,104 @@
+#___
+#apiVersion: v1
+#kind: PersistentVolume
+#metadata:
+#  annotations:
+#    pv.kubernetes.io/provisioned-by: cinder.csi.openstack.org
+#  name: nexus-data
+#  namespace: ingress-nginx
+#spec:
+#  accessModes:
+#    - ReadWriteOnce
+#  capacity:
+#    storage: 10Gi
+#  csi:
+#    driver: cinder.csi.openstack.org
+#    fsType: ext4
+#    volumeHandle: b0b483ed-2b3d-4f7d-9f6b-c1c3fc458efe
+#  persistentVolumeReclaimPolicy: Delete
+#  storageClassName: tron-k8s-sc
+#
+#---
+#apiVersion: v1
+#kind: PersistentVolumeClaim
+#metadata:
+#  name: nexus-data
+#  namespace: ingress-nginx
+#spec:
+#  accessModes:
+#    - ReadWriteOnce
+#  resources:
+#    requests:
+#      storage: 10Gi
+#  storageClassName: tron-k8s-sc
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+    name: nexus
+    namespace: ingress-nginx
+    labels:
+      app: nexus
+      section: tools
+spec:
+  selector:
+    matchLabels:
+      app: nexus
+      section: tools
+  serviceName: nexus
+  template:
+    metadata:
+      labels:
+        app: nexus
+        section: tools
+    spec:
+      volumes:
+        - name: nexus-data
+          persistentVolumeClaim:
+            claimName: nexus-data
+      containers:
+        - name: nexus
+          image: sonatype/nexus3:3.52.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+              protocol: TCP
+          env:
+            - name: INSTALL4J_ADD_VM_PARAMS
+              value: "-Xms2g -Xmx2g -XX:MaxDirectMemorySize=2g"
+            # - name: NEXUS_CONTEXT
+            #  value: nexus
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "2Gi"
+              cpu: "2"
+#          volumeMounts:
+#            - mountPath: /nexus-data
+#              name: nexus-data
+#  volumeClaimTemplates:
+#  - metadata:
+#      name: nexus-data
+#    spec:
+#      accessModes: [ "ReadWriteOnce" ]
+#      storageClassName: "tron-k8s-sc"
+#      resources:
+#        requests:
+#          storage: 8Gi
